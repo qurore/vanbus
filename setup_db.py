@@ -18,6 +18,12 @@ CREATE TABLE IF NOT EXISTS bus_delays (
     delay_seconds INT,
     vehicle_id STRING,
     recorded_at TIMESTAMPTZ DEFAULT now(),
+    temperature_c FLOAT,
+    humidity_percent INT,
+    wind_speed_kmh FLOAT,
+    wind_direction STRING,
+    pressure_kpa FLOAT,
+    visibility_km FLOAT,
     INDEX idx_route_id (route_id),
     INDEX idx_stop_id (stop_id),
     INDEX idx_recorded_at (recorded_at)
