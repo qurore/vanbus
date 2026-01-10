@@ -23,3 +23,8 @@ build/
 
 # Archives
 archives/
+.dev.vars
+worker/wrangler.toml
+
+# workers/node_modules
+worker/node_modules/
