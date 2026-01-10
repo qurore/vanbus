@@ -82,30 +82,31 @@ def parse_trip_updates(feed):
 
 
 def save_to_database(records):
-    """Save records to CockroachDB."""
+    """Save records to CockroachDB using batch insert."""
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL environment variable is not set")
 
     import psycopg2
+    from psycopg2.extras import execute_values
 
     conn = psycopg2.connect(DATABASE_URL)
     try:
         with conn.cursor() as cur:
-            for record in records:
-                cur.execute(
-                    """
-                    INSERT INTO bus_delays (route_id, stop_id, trip_id, delay_seconds, vehicle_id, recorded_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        record['route_id'],
-                        record['stop_id'],
-                        record['trip_id'],
-                        record['delay_seconds'],
-                        record['vehicle_id'],
-                        record['recorded_at']
-                    )
-                )
+            # Prepare data as list of tuples
+            data = [
+                (r['route_id'], r['stop_id'], r['trip_id'], r['delay_seconds'], r['vehicle_id'], r['recorded_at'])
+                for r in records
+            ]
+            # Batch insert for much better performance
+            execute_values(
+                cur,
+                """
+                INSERT INTO bus_delays (route_id, stop_id, trip_id, delay_seconds, vehicle_id, recorded_at)
+                VALUES %s
+                """,
+                data,
+                page_size=1000
+            )
         conn.commit()
     finally:
         conn.close()
