@@ -13,6 +13,7 @@ export interface Env {
 
 async function collectData(env: Env): Promise<string> {
   const startTime = Date.now();
+  const collectedAt = new Date();
 
   // 1. Fetch GTFS-RT data from TransLink
   const url = `${env.TRANSLINK_BASE_URL}?apikey=${env.TRANSLINK_API_KEY}`;
@@ -29,7 +30,7 @@ async function collectData(env: Env): Promise<string> {
   const buffer = await response.arrayBuffer();
 
   // 2. Parse protobuf data
-  const records = parseGtfsRealtime(buffer);
+  const records = parseGtfsRealtime(buffer, collectedAt);
 
   if (records.length === 0) {
     return "No records found in feed";

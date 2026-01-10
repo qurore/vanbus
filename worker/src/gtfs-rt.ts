@@ -10,9 +10,10 @@ export interface DelayRecord {
   delay_seconds: number;
   vehicle_id: string | null;
   recorded_at: Date;
+  collected_at: Date;
 }
 
-export function parseGtfsRealtime(buffer: ArrayBuffer): DelayRecord[] {
+export function parseGtfsRealtime(buffer: ArrayBuffer, collectedAt: Date): DelayRecord[] {
   const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
     new Uint8Array(buffer)
   );
@@ -52,6 +53,7 @@ export function parseGtfsRealtime(buffer: ArrayBuffer): DelayRecord[] {
           delay_seconds: delaySeconds,
           vehicle_id: vehicleId,
           recorded_at: timestamp,
+          collected_at: collectedAt,
         });
       }
     }

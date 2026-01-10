@@ -24,17 +24,19 @@ export async function saveRecords(
     const tripIds = records.map((r) => r.trip_id);
     const delays = records.map((r) => r.delay_seconds);
     const vehicleIds = records.map((r) => r.vehicle_id);
-    const timestamps = records.map((r) => r.recorded_at.toISOString());
+    const recordedAtTimes = records.map((r) => r.recorded_at.toISOString());
+    const collectedAtTimes = records.map((r) => r.collected_at.toISOString());
 
     await sql`
-      INSERT INTO bus_delays (route_id, stop_id, trip_id, delay_seconds, vehicle_id, recorded_at)
+      INSERT INTO bus_delays (route_id, stop_id, trip_id, delay_seconds, vehicle_id, recorded_at, collected_at)
       SELECT * FROM unnest(
         ${routeIds}::text[],
         ${stopIds}::text[],
         ${tripIds}::text[],
         ${delays}::int[],
         ${vehicleIds}::text[],
-        ${timestamps}::timestamptz[]
+        ${recordedAtTimes}::timestamptz[],
+        ${collectedAtTimes}::timestamptz[]
       )
     `;
 
