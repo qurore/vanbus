@@ -23,6 +23,10 @@ build/
 
 # Archives
 archives/
+
+# Lambda deployment artifacts
+lambda_package.zip
+**/package/
 .dev.vars
 worker/wrangler.toml
 
