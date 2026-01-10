@@ -20,3 +20,6 @@ build/
 # Secrets
 *.pem
 *.key
+
+# Archives
+archives/
