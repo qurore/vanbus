@@ -41,7 +41,8 @@ def fetch_trip_updates():
 def parse_trip_updates(feed):
     """Parse GTFS-RT feed and extract delay information."""
     records = []
-    timestamp = datetime.now(timezone.utc)
+    # Use feed's timestamp (when TransLink generated the data)
+    timestamp = datetime.fromtimestamp(feed.header.timestamp, tz=timezone.utc)
 
     for entity in feed.entity:
         if not entity.HasField('trip_update'):
