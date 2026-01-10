@@ -11,8 +11,6 @@ import requests
 from google.transit import gtfs_realtime_pb2
 from dotenv import load_dotenv
 
-from weather import fetch_vancouver_weather, WeatherData
-
 # Load environment variables from .env file (for local development)
 load_dotenv()
 
@@ -40,8 +38,8 @@ def fetch_trip_updates():
     return feed
 
 
-def parse_trip_updates(feed, weather: WeatherData):
-    """Parse GTFS-RT feed and extract delay information with weather data."""
+def parse_trip_updates(feed):
+    """Parse GTFS-RT feed and extract delay information."""
     records = []
     timestamp = datetime.now(timezone.utc)
 
@@ -78,12 +76,6 @@ def parse_trip_updates(feed, weather: WeatherData):
                     'delay_seconds': delay_seconds,
                     'vehicle_id': vehicle_id,
                     'recorded_at': timestamp,
-                    'temperature_c': weather.temperature_c,
-                    'humidity_percent': weather.humidity_percent,
-                    'wind_speed_kmh': weather.wind_speed_kmh,
-                    'wind_direction': weather.wind_direction,
-                    'pressure_kpa': weather.pressure_kpa,
-                    'visibility_km': weather.visibility_km,
                 })
 
     return records
@@ -100,27 +92,13 @@ def save_to_database(records):
     conn = psycopg2.connect(DATABASE_URL)
     try:
         with conn.cursor() as cur:
-            # Prepare data as list of tuples (including weather data)
             data = [
-                (
-                    r['route_id'], r['stop_id'], r['trip_id'], r['delay_seconds'],
-                    r['vehicle_id'], r['recorded_at'], r['temperature_c'],
-                    r['humidity_percent'], r['wind_speed_kmh'], r['wind_direction'],
-                    r['pressure_kpa'], r['visibility_km']
-                )
+                (r['route_id'], r['stop_id'], r['trip_id'], r['delay_seconds'], r['vehicle_id'], r['recorded_at'])
                 for r in records
             ]
-            # Batch insert for much better performance
             execute_values(
                 cur,
-                """
-                INSERT INTO bus_delays (
-                    route_id, stop_id, trip_id, delay_seconds, vehicle_id, recorded_at,
-                    temperature_c, humidity_percent, wind_speed_kmh, wind_direction,
-                    pressure_kpa, visibility_km
-                )
-                VALUES %s
-                """,
+                "INSERT INTO bus_delays (route_id, stop_id, trip_id, delay_seconds, vehicle_id, recorded_at) VALUES %s",
                 data,
                 page_size=1000
             )
@@ -133,17 +111,9 @@ def main():
     """Main entry point."""
     print(f"[{datetime.now().isoformat()}] Starting data collection...")
 
-    # Fetch weather data
-    try:
-        weather = fetch_vancouver_weather()
-        print(f"Weather: {weather.temperature_c}°C, {weather.humidity_percent}% humidity, wind {weather.wind_speed_kmh} km/h")
-    except Exception as e:
-        print(f"Warning: Could not fetch weather data: {e}")
-        weather = WeatherData()  # Use empty weather data
-
     # Fetch and parse trip updates
     feed = fetch_trip_updates()
-    records = parse_trip_updates(feed, weather)
+    records = parse_trip_updates(feed)
     print(f"Parsed {len(records)} delay records from GTFS-RT feed")
 
     if not records:
@@ -156,7 +126,6 @@ def main():
         print(f"Successfully saved {len(records)} records to database")
     else:
         print("DATABASE_URL not set. Skipping database save.")
-        # Print sample records for debugging
         print("\nSample records:")
         for record in records[:5]:
             print(f"  Route {record['route_id']}, Stop {record['stop_id']}: {record['delay_seconds']}s delay")
