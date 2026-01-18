@@ -103,6 +103,7 @@ def fetch_historical_data(start_date: datetime, end_date: datetime) -> list:
             'wind_direction': props.get("avg_wnd_dir_10m_pst2mts") or props.get("avg_wnd_dir_10m_pst10mts"),
             'pressure_hpa': props.get("mslp"),
             'visibility_km': props.get("avg_vis_pst10mts"),
+            'precipitation_mm': props.get("pcpn_amt_pst1hr"),
         }
 
         station_data[key] = weather
@@ -138,6 +139,7 @@ def save_to_db(records: list) -> int:
                 r['wind_direction'],
                 r['pressure_hpa'],
                 r['visibility_km'],
+                r['precipitation_mm'],
                 collected_at,
             )
             for r in records
@@ -148,7 +150,8 @@ def save_to_db(records: list) -> int:
             INSERT INTO weather (
                 station_id, station_name, recorded_at, lat, lon,
                 temperature_c, humidity_percent, wind_speed_kmh,
-                wind_direction, pressure_hpa, visibility_km, collected_at
+                wind_direction, pressure_hpa, visibility_km,
+                precipitation_mm, collected_at
             ) VALUES %s
             ON CONFLICT (station_id, recorded_at) DO UPDATE SET
                 temperature_c = EXCLUDED.temperature_c,
@@ -157,6 +160,7 @@ def save_to_db(records: list) -> int:
                 wind_direction = EXCLUDED.wind_direction,
                 pressure_hpa = EXCLUDED.pressure_hpa,
                 visibility_km = EXCLUDED.visibility_km,
+                precipitation_mm = EXCLUDED.precipitation_mm,
                 collected_at = EXCLUDED.collected_at
         """
 

@@ -96,6 +96,7 @@ def fetch_all_stations() -> list:
             'wind_direction': props.get("avg_wnd_dir_10m_pst10mts") or props.get("avg_wnd_dir_10m_pst2mts"),
             'pressure_hpa': props.get("mslp"),
             'visibility_km': props.get("avg_vis_pst10mts"),
+            'precipitation_mm': props.get("pcpn_amt_pst1hr"),
         }
 
         station_data[station_id] = weather
@@ -142,8 +143,9 @@ def save_weather_batch(database_url: str, weather_list: list, collected_at: date
             cur.execute('''
                 INSERT INTO weather (station_id, station_name, recorded_at, lat, lon,
                                      temperature_c, humidity_percent, wind_speed_kmh,
-                                     wind_direction, pressure_hpa, visibility_km, collected_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                     wind_direction, pressure_hpa, visibility_km,
+                                     precipitation_mm, collected_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (station_id, recorded_at) DO UPDATE SET
                     temperature_c = EXCLUDED.temperature_c,
                     humidity_percent = EXCLUDED.humidity_percent,
@@ -151,6 +153,7 @@ def save_weather_batch(database_url: str, weather_list: list, collected_at: date
                     wind_direction = EXCLUDED.wind_direction,
                     pressure_hpa = EXCLUDED.pressure_hpa,
                     visibility_km = EXCLUDED.visibility_km,
+                    precipitation_mm = EXCLUDED.precipitation_mm,
                     collected_at = EXCLUDED.collected_at;
             ''', (
                 w['station_id'],
@@ -164,6 +167,7 @@ def save_weather_batch(database_url: str, weather_list: list, collected_at: date
                 w['wind_direction'],
                 w['pressure_hpa'],
                 w['visibility_km'],
+                w['precipitation_mm'],
                 collected_at.isoformat(),
             ))
             saved_count += 1
