@@ -118,6 +118,11 @@ def save_to_db(database_url: str, records: list) -> int:
                 %s::timestamptz[],
                 %s::timestamptz[]
             )
+            ON CONFLICT (route_id, stop_id, trip_id) DO UPDATE SET
+                delay_seconds = EXCLUDED.delay_seconds,
+                vehicle_id = EXCLUDED.vehicle_id,
+                recorded_at = EXCLUDED.recorded_at,
+                collected_at = EXCLUDED.collected_at
         ''', (route_ids, stop_ids, trip_ids, delays, vehicle_ids, recorded_at_times, collected_at_times))
 
         conn.commit()
