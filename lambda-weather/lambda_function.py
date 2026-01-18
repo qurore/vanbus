@@ -11,23 +11,24 @@ from urllib.parse import urlparse
 import requests
 import pg8000
 
-# Metro Vancouver SWOB stations (14 stations with complete data)
-# Excluded: TSAWWASSEN FERRY AUTO (no temp/humidity), VANCOUVER HARBOUR CS (no wind)
+# Metro Vancouver & surrounding area SWOB stations (15 stations)
+# Verified available from Environment Canada SWOB API
 STATIONS = [
-    {"id": "1107010", "name": "SANDHEADS CS"},
-    {"id": "10459NN", "name": "HOWE SOUND - PAM ROCKS"},
-    {"id": "1106200", "name": "POINT ATKINSON"},
-    {"id": "1108824", "name": "WEST VANCOUVER AUT"},
-    {"id": "1108380", "name": "VANCOUVER SEA ISLAND CCG"},
-    {"id": "CYVR", "name": "Vancouver International"},
-    {"id": "CYHC", "name": "Vancouver Harbour"},
-    {"id": "CZBB", "name": "Vancouver Boundary Bay"},
-    {"id": "1102415", "name": "DELTA BURNS BOG"},
-    {"id": "1108910", "name": "WHITE ROCK"},
-    {"id": "CYPK", "name": "Pitt Meadows"},
-    {"id": "1106178", "name": "PITT MEADOWS CS"},
-    {"id": "CYNJ", "name": "Langley Regional"},
+    {"id": "1100119", "name": "AGASSIZ RCS"},
     {"id": "CYXX", "name": "Abbotsford"},
+    {"id": "1102415", "name": "DELTA BURNS BOG"},
+    {"id": "1113543", "name": "HOPE AIRPORT"},
+    {"id": "1106178", "name": "PITT MEADOWS CS"},
+    {"id": "1106200", "name": "POINT ATKINSON"},
+    {"id": "1047172", "name": "SECHELT AUT"},
+    {"id": "10476F0", "name": "SQUAMISH AIRPORT"},
+    {"id": "1108824", "name": "WEST VANCOUVER AUT"},
+    {"id": "1108910", "name": "WHITE ROCK"},
+    {"id": "1012710", "name": "ESQUIMALT HARBOUR"},
+    {"id": "1015630", "name": "NORTH COWICHAN"},
+    {"id": "1016943", "name": "SAANICHTON CFIA"},
+    {"id": "1018611", "name": "VICTORIA GONZALES CS"},
+    {"id": "1018598", "name": "VICTORIA UNIVERSITY CS"},
 ]
 
 # Station IDs to include (for filtering)
@@ -38,10 +39,10 @@ SWOB_API_URL = "https://api.weather.gc.ca/collections/swob-realtime/items"
 
 def fetch_all_stations() -> list:
     """Fetch weather data from all SWOB stations in Metro Vancouver."""
-    # Use bounding box to get all Vancouver area stations
+    # Use bounding box to get Metro Vancouver & surrounding area stations
     params = {
-        "bbox": "-123.5,48.9,-122.2,49.5",
-        "limit": 200,
+        "bbox": "-124.5,48.0,-121.0,50.0",
+        "limit": 500,
         "f": "json",
     }
 
