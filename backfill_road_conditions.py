@@ -1,86 +1,140 @@
 #!/usr/bin/env python3
 """
-Backfill road conditions data from DriveBC historical CSV files.
+Backfill road conditions data from DriveBC API.
 
-DriveBC API only provides current ACTIVE events, so historical data
-must be imported from CSV files available at:
-https://catalogue.data.gov.bc.ca/dataset/bc-road-and-weather-conditions
-
-Note: This script is provided for future use when historical CSV data
-becomes available. Currently, the Lambda collector will build up
-historical data over time by collecting active events periodically.
+Fetches ARCHIVED events from Open511-DriveBC API for a specified date range.
 """
 import os
-import csv
 from datetime import datetime, timezone
 from typing import Optional
 
+import requests
 import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 
 load_dotenv()
 
+DRIVEBC_API_URL = "https://api.open511.gov.bc.ca/events"
+METRO_VANCOUVER_BBOX = "-124.5,48.0,-121.0,50.0"
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 
 def parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
-    """Parse datetime string from CSV."""
+    """Parse datetime string from API."""
     if not dt_str:
         return None
     try:
-        # Try ISO format first
         return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
     except ValueError:
-        pass
-    try:
-        # Try common CSV format
-        return datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-    except ValueError:
-        pass
-    return None
+        return None
 
 
-def import_from_csv(csv_path: str) -> int:
-    """Import road conditions from a CSV file."""
+def fetch_archived_events(start_date: str) -> list:
+    """Fetch all archived events since start_date using pagination."""
+    all_events = []
+    offset = 0
+    limit = 500
+
+    while True:
+        params = {
+            "status": "ARCHIVED",
+            "bbox": METRO_VANCOUVER_BBOX,
+            "created": f">{start_date}",
+            "limit": limit,
+            "offset": offset,
+            "format": "json",
+        }
+
+        print(f"  Fetching offset {offset}...")
+        response = requests.get(DRIVEBC_API_URL, params=params, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+
+        events = data.get("events", [])
+        if not events:
+            break
+
+        all_events.extend(events)
+        print(f"    Got {len(events)} events (total: {len(all_events)})")
+
+        if len(events) < limit:
+            break
+
+        offset += limit
+
+    return all_events
+
+
+def parse_event(event: dict) -> dict:
+    """Parse API event into database record format."""
+    # Extract geography
+    geography = event.get("geography", {})
+    coords = geography.get("coordinates", [])
+
+    lat, lon = None, None
+    if geography.get("type") == "Point" and len(coords) >= 2:
+        lon, lat = coords[0], coords[1]
+    elif geography.get("type") == "LineString" and coords:
+        lon, lat = coords[0][0], coords[0][1]
+
+    # Extract road info
+    roads = event.get("roads", [])
+    road_name = roads[0].get("name") if roads else None
+    direction = roads[0].get("direction") if roads else None
+
+    # Extract event subtype
+    event_subtypes = event.get("event_subtypes", [])
+    event_subtype = event_subtypes[0] if event_subtypes else None
+
+    return {
+        'event_id': event.get("id"),
+        'status': event.get("status"),
+        'severity': event.get("severity"),
+        'event_type': event.get("event_type"),
+        'event_subtype': event_subtype,
+        'headline': event.get("headline"),
+        'description': event.get("description"),
+        'road_name': road_name,
+        'direction': direction,
+        'lat': lat,
+        'lon': lon,
+        'created_at': parse_datetime(event.get("created")),
+        'updated_at': parse_datetime(event.get("updated")),
+    }
+
+
+def save_to_db(events: list) -> int:
+    """Save events to database using upsert."""
+    if not events:
+        return 0
+
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
     collected_at = datetime.now(timezone.utc)
-    records = []
-
-    with open(csv_path, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-
-        for row in reader:
-            # Map CSV columns to database columns
-            # Note: Column names may vary depending on the CSV source
-            record = (
-                row.get('event_id') or row.get('EVENT_ID'),
-                row.get('status') or row.get('STATUS'),
-                row.get('severity') or row.get('SEVERITY'),
-                row.get('event_type') or row.get('EVENT_TYPE'),
-                row.get('event_subtype') or row.get('EVENT_SUBTYPE'),
-                row.get('headline') or row.get('HEADLINE'),
-                row.get('description') or row.get('DESCRIPTION'),
-                row.get('road_name') or row.get('ROAD_NAME'),
-                row.get('direction') or row.get('DIRECTION'),
-                float(row.get('lat') or row.get('LATITUDE') or 0) or None,
-                float(row.get('lon') or row.get('LONGITUDE') or 0) or None,
-                parse_datetime(row.get('created_at') or row.get('CREATED')),
-                parse_datetime(row.get('updated_at') or row.get('UPDATED')),
-                collected_at,
-            )
-
-            # Skip records without event_id
-            if record[0]:
-                records.append(record)
-
-    if not records:
-        print(f"No valid records found in {csv_path}")
-        return 0
 
     try:
+        records = []
+        for event in events:
+            e = parse_event(event)
+            records.append((
+                e['event_id'],
+                e['status'],
+                e['severity'],
+                e['event_type'],
+                e['event_subtype'],
+                e['headline'],
+                e['description'],
+                e['road_name'],
+                e['direction'],
+                e['lat'],
+                e['lon'],
+                e['created_at'],
+                e['updated_at'],
+                collected_at,
+            ))
+
         sql = """
             INSERT INTO road_conditions (
                 event_id, status, severity, event_type, event_subtype,
@@ -93,7 +147,7 @@ def import_from_csv(csv_path: str) -> int:
                 collected_at = EXCLUDED.collected_at
         """
 
-        execute_values(cur, sql, records, page_size=1000)
+        execute_values(cur, sql, records, page_size=500)
         conn.commit()
 
         return len(records)
@@ -105,27 +159,51 @@ def import_from_csv(csv_path: str) -> int:
 def main():
     import sys
 
-    if len(sys.argv) < 2:
-        print("Usage: python backfill_road_conditions.py <csv_file>")
-        print()
-        print("Import historical road conditions from a CSV file.")
-        print("CSV should have columns: event_id, status, severity, event_type,")
-        print("event_subtype, headline, description, road_name, direction,")
-        print("lat, lon, created_at, updated_at")
-        print()
-        print("Historical data can be downloaded from:")
-        print("https://catalogue.data.gov.bc.ca/dataset/bc-road-and-weather-conditions")
-        return
+    start_date = "2026-01-01"
+    if len(sys.argv) >= 2:
+        start_date = sys.argv[1]
 
-    csv_path = sys.argv[1]
+    print(f"Backfilling road conditions from {start_date}")
+    print(f"Bounding box: {METRO_VANCOUVER_BBOX}")
+    print()
 
-    if not os.path.exists(csv_path):
-        print(f"Error: File not found: {csv_path}")
-        return
+    # Fetch archived events
+    print("Fetching ARCHIVED events from DriveBC API...")
+    events = fetch_archived_events(start_date)
+    print(f"\nTotal archived events: {len(events)}")
 
-    print(f"Importing road conditions from {csv_path}...")
-    count = import_from_csv(csv_path)
-    print(f"Imported {count} records")
+    if events:
+        # Summary by type
+        by_type = {}
+        for e in events:
+            t = e.get('event_type', 'UNKNOWN')
+            by_type[t] = by_type.get(t, 0) + 1
+
+        print("\nBy event type:")
+        for t, count in sorted(by_type.items(), key=lambda x: -x[1]):
+            print(f"  {t}: {count}")
+
+        # Save to database
+        print("\nSaving to database...")
+        saved = save_to_db(events)
+        print(f"Saved {saved} records")
+
+    # Also fetch current ACTIVE events
+    print("\nFetching current ACTIVE events...")
+    params = {
+        "status": "ACTIVE",
+        "bbox": METRO_VANCOUVER_BBOX,
+        "format": "json",
+    }
+    response = requests.get(DRIVEBC_API_URL, params=params, timeout=30)
+    response.raise_for_status()
+    active_events = response.json().get("events", [])
+
+    if active_events:
+        saved = save_to_db(active_events)
+        print(f"Saved {saved} active events")
+
+    print("\nDone!")
 
 
 if __name__ == "__main__":
