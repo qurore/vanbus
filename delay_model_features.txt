@@ -1,0 +1,17 @@
+hour
+day_of_week
+is_weekend
+is_rush_hour
+route_short_name
+direction_id
+stop_sequence
+stop_lat
+stop_lon
+temperature_c
+humidity_percent
+wind_speed_kmh
+precipitation_mm
+visibility_km
+active_incidents
+active_construction
+nearest_event_distance_km
