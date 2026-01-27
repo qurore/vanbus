@@ -5,7 +5,7 @@ Fetches real-time weather from 16 SWOB stations across Metro Vancouver
 import os
 import json
 import ssl
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 
 import requests
@@ -39,9 +39,15 @@ SWOB_API_URL = "https://api.weather.gc.ca/collections/swob-realtime/items"
 
 def fetch_all_stations() -> list:
     """Fetch weather data from all SWOB stations in Metro Vancouver."""
+    # Use datetime range to get fresh data (last 2 hours)
+    now = datetime.now(timezone.utc)
+    start_time = (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     # Use bounding box to get Metro Vancouver & surrounding area stations
     params = {
         "bbox": "-124.5,48.0,-121.0,50.0",
+        "datetime": f"{start_time}/{end_time}",
         "limit": 500,
         "f": "json",
     }
