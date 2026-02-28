@@ -24,8 +24,8 @@ build/
 # Archives
 archives/
 
-# DB export
-db_export/
+# DB exports
+db_export*/
 
 # Lambda deployment artifacts
 lambda_package.zip

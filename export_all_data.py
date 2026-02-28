@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-OUTPUT_DIR = "db_export"
+OUTPUT_DIR = sys.argv[1] if len(sys.argv) > 1 else "db_export"
 
 TABLES = [
     "bus_delays",
