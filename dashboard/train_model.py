@@ -76,8 +76,14 @@ def load_raw() -> dict:
         for c in cols:
             df[c] = pd.to_numeric(df[c], errors="coerce").astype("Int64")
 
-    bus["recorded_at"]     = pd.to_datetime(bus["recorded_at"], utc=True)
-    weather["recorded_at"] = pd.to_datetime(weather["recorded_at"], utc=True)
+    # Mix of microsecond precisions across rows → force ISO8601 / mixed parsing.
+    def _parse_ts(s):
+        try:
+            return pd.to_datetime(s, format="ISO8601", utc=True)
+        except (ValueError, TypeError):
+            return pd.to_datetime(s, format="mixed", utc=True)
+    bus["recorded_at"]     = _parse_ts(bus["recorded_at"])
+    weather["recorded_at"] = _parse_ts(weather["recorded_at"])
 
     print(f"       loaded in {time.time()-t0:.1f}s — bus={len(bus):,}, weather={len(weather):,}, road={len(road):,}")
     return {"bus": bus, "routes": routes, "stops": stops, "trips": trips,
