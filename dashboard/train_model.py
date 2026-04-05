@@ -76,8 +76,8 @@ def load_raw() -> dict:
         for c in cols:
             df[c] = pd.to_numeric(df[c], errors="coerce").astype("Int64")
 
-    bus["recorded_at"] = pd.to_datetime(bus["recorded_at"], format="ISO8601", utc=True)
-    weather["recorded_at"] = pd.to_datetime(weather["recorded_at"], format="ISO8601", utc=True)
+    bus["recorded_at"]     = pd.to_datetime(bus["recorded_at"], utc=True)
+    weather["recorded_at"] = pd.to_datetime(weather["recorded_at"], utc=True)
 
     print(f"       loaded in {time.time()-t0:.1f}s — bus={len(bus):,}, weather={len(weather):,}, road={len(road):,}")
     return {"bus": bus, "routes": routes, "stops": stops, "trips": trips,
@@ -327,9 +327,14 @@ def main():
         }, f, indent=2)
 
     # --- Stop metadata lookup (for the selector) ---
+    # IMPORTANT: also include the per-stop static road features exactly as
+    # they appear in the training data, so inference uses the same values and
+    # does not drift out of the scaler's training distribution.
     stops_meta = (
         bus_enh[["route_short_name", "direction_id", "stop_id", "stop_name",
-                 "stop_sequence", "stop_lat", "stop_lon"]]
+                 "stop_sequence", "stop_lat", "stop_lon",
+                 "active_incidents", "active_construction",
+                 "nearest_event_distance_km"]]
         .drop_duplicates(subset=["route_short_name", "direction_id", "stop_id"])
         .sort_values(["route_short_name", "direction_id", "stop_sequence"])
         .reset_index(drop=True)
