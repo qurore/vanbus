@@ -35,3 +35,6 @@ worker/wrangler.toml
 
 # workers/node_modules
 worker/node_modules/
+
+# misc
+misc/
